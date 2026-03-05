@@ -1,0 +1,43 @@
+{
+  "name": "Intergalactic Hitchhiker's Guide Utility",
+  "build": {
+    "args": {
+      "PYTHON_VERSION": "3.12"
+    }
+  },
+  "image": "mcr.microsoft.com/devcontainers/python:3.12",
+  "ports": [
+    {
+      "protocol": "tcp",
+      "port": 5000,
+      "onOpen": "openBrowser",
+      "description": "Flask web server for fuel calculator UI"
+    }
+  ],
+  "forwardPorts": [5000],
+  "hostRequirements": {
+    "cpu": 2,
+    "memory": "4GB",
+    "storage": "10GB"
+  },
+  "extensions": [
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    "ms-vscode.flask"
+  ],
+  "settings": {
+    "python.linting.enabled": true,
+    "python.linting.pylintEnabled": false,
+    "python.linting.flake8Enabled": true,
+    "python.formattingProvider": "black",
+    "editor.formatOnSave": true,
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true
+  },
+  "postCreateCommand": "pip install -r requirements.txt",
+  "remoteEnv": {
+    "FLASK_APP": "app.py",
+    "FLASK_DEBUG": "1",
+    "PYTHONUNBUFFERED": "1"
+  }
+}
