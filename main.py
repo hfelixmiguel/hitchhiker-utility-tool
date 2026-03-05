@@ -6,6 +6,7 @@ and provides random travel advice for intergalactic travelers.
 """
 
 import logging
+import os
 import random
 from typing import Optional, Tuple
 
@@ -18,6 +19,11 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+class ConfigurationError(Exception):
+    """Custom exception for configuration-related errors."""
+    pass
+
+
 class FuelCostCalculator:
     """Calculate fuel costs for intergalactic travel in Galactic Credits."""
 
@@ -27,9 +33,12 @@ class FuelCostCalculator:
 
         Args:
             base_rate: Base cost in Galactic Credits per light-year (default: 1.5)
+        
+        Raises:
+            ConfigurationError: If base_rate is negative
         """
         if base_rate < 0:
-            raise ValueError("Base rate must be non-negative")
+            raise ConfigurationError("Base rate must be non-negative")
         self.base_rate = base_rate
 
     def calculate_cost(
@@ -50,12 +59,12 @@ class FuelCostCalculator:
             Tuple of (total_cost, breakdown_dict)
 
         Raises:
-            ValueError: If distance is negative or efficiency <= 0
+            ConfigurationError: If distance is negative or efficiency <= 0
         """
         if distance_ly < 0:
-            raise ValueError("Distance must be non-negative")
+            raise ConfigurationError("Distance must be non-negative")
         if fuel_efficiency <= 0:
-            raise ValueError("Fuel efficiency must be positive")
+            raise ConfigurationError("Fuel efficiency must be positive")
         
         base_cost = distance_ly * self.base_rate / fuel_efficiency
         tax_amount = base_cost * tax_rate
@@ -104,9 +113,12 @@ class TravelAdviceGenerator:
 
         Returns:
             List of unique advice strings
+        
+        Raises:
+            ConfigurationError: If count is not positive
         """
         if count <= 0:
-            raise ValueError("Count must be positive")
+            raise ConfigurationError("Count must be positive")
         
         return random.sample(self.advice_templates, min(count, len(self.advice_templates)))
 
@@ -135,8 +147,8 @@ def main() -> None:
         print(f"  Tax (15%): {breakdown['tax_amount']} Galactic Credits")
         print(f"  Total Cost: {breakdown['total_cost']} Galactic Credits\n")
 
-    except ValueError as e:
-        logger.error(f"Calculation error: {e}")
+    except ConfigurationError as e:
+        logger.error(f"Configuration error: {e}")
         return
 
     # Generate travel advice
