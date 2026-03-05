@@ -3,6 +3,9 @@
 # Web Framework
 flask>=2.0.0
 
+# Rate limiting
+Flask-Limiter>=3.0.0
+
 # Production server
 gunicorn>=21.0.0
 
