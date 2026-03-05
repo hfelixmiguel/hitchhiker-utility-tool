@@ -27,7 +27,7 @@ class TestFuelCostCalculator:
         calc = FuelCostCalculator(base_rate=2.0)
         total_cost, breakdown = calc.calculate_cost(distance_ly=5.0)
         
-        assert total_cost == 10.0
+        assert total_cost == 11.0
         assert breakdown["distance_ly"] == 5.0
         assert breakdown["base_cost"] == 10.0
         assert breakdown["tax_amount"] == 1.0  # Default 10% tax
