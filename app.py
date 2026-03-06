@@ -735,11 +735,9 @@ INDEX_TEMPLATE = '''<!DOCTYPE html>
 </html>'''
 
 
-# Vercel handler function
-def handler(event, context):
-    """Vercel Python handler function"""
-    return app(event, context)
-
+# For Vercel serverless function - export the Flask app as 'app'
+# The handler will be automatically set to app by Vercel
+app = app
 
 if __name__ == '__main__':
     logger.info("Starting Flask web server...")
