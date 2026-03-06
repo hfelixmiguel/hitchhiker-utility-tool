@@ -3,10 +3,13 @@ Flask web application for Intergalactic Hitchhiker's Guide Utility.
 
 Provides a modern, fluid UI for calculating fuel costs and generating travel advice.
 Compatible with Vercel Python runtime.
+Includes API key authentication and rate limiting.
 """
 
 import json
 import logging
+import os
+from functools import wraps
 from flask import Flask, jsonify, request, render_template_string
 
 # Import from main module
@@ -20,6 +23,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+
+# Configuration
+API_KEY = os.environ.get('API_KEY', 'hitchhiker-default-key-2026')
 
 # Simple in-memory rate limiting (for demonstration)
 request_counts = {}
@@ -37,8 +43,33 @@ def check_rate_limit(key, limit=10, window=60):
     request_counts[key].append(now)
     return True
 
+def require_api_key(f):
+    """Decorator to require API key for endpoint access"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        api_key = request.headers.get('X-API-Key')
+        
+        if not api_key:
+            logger.warning("Missing API key in request")
+            return jsonify({
+                "error": "API key required",
+                "message": "Please provide API key in X-API-Key header"
+            }), 401
+        
+        if api_key != API_KEY:
+            logger.warning(f"Invalid API key attempted: {api_key[:8]}...")
+            return jsonify({
+                "error": "Invalid API key",
+                "message": "The provided API key is not valid"
+            }), 401
+        
+        return f(*args, **kwargs)
+    return decorated_function
+
+
 # Apply rate limits to API endpoints
 @app.route('/api/calculate', methods=['POST'])
+@require_api_key
 def calculate_fuel_cost():
     """Calculate fuel cost for a journey.
     
@@ -79,6 +110,7 @@ def calculate_fuel_cost():
 
 
 @app.route('/api/advice', methods=['GET'])
+@require_api_key
 def get_advice():
     """Generate random travel advice."""
     if not check_rate_limit('advice', limit=20, window=60):
@@ -100,6 +132,7 @@ def get_advice():
 
 
 @app.route('/api/history', methods=['GET'])
+@require_api_key
 def get_history():
     """Get calculation history."""
     return jsonify({"success": True, "data": []}), 200
@@ -107,10 +140,12 @@ def get_history():
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
-    """Health check endpoint."""
+    """Health check endpoint (public, no auth required)."""
     return jsonify({
         "status": "healthy",
-        "service": "Intergalactic Hitchhiker's Guide Utility"
+        "service": "Intergalactic Hitchhiker's Guide Utility",
+        "version": "1.0.0",
+        "auth_enabled": True
     }), 200
 
 
@@ -202,7 +237,7 @@ INDEX_TEMPLATE = '''<!DOCTYPE html>
             font-size: 0.9rem;
         }
 
-        input[type="number"] {
+        input[type="number"], input[type="password"] {
             width: 100%;
             padding: 12px;
             background: rgba(255, 255, 255, 0.1);
@@ -213,13 +248,13 @@ INDEX_TEMPLATE = '''<!DOCTYPE html>
             transition: all 0.3s ease;
         }
 
-        input[type="number"]:focus {
+        input[type="number"]:focus, input[type="password"]:focus {
             outline: none;
             border-color: var(--primary);
             box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3);
         }
 
-        input[type="number"].input-error {
+        input[type="number"].input-error, input[type="password"].input-error {
             border-color: var(--error);
             box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.3);
         }
@@ -373,6 +408,16 @@ INDEX_TEMPLATE = '''<!DOCTYPE html>
             font-size: 0.85rem;
         }
 
+        .api-key-notice {
+            background: rgba(245, 158, 11, 0.15);
+            border: 1px solid var(--warning);
+            padding: 0.75rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            font-size: 0.85rem;
+            color: var(--warning);
+        }
+
         @media (min-width: 600px) {
             body { padding: 2rem; }
             h1 { font-size: 2.5rem; }
@@ -388,6 +433,19 @@ INDEX_TEMPLATE = '''<!DOCTYPE html>
             <h1>🚀 Intergalactic Hitchhiker's Guide</h1>
             <p class="subtitle">Your trusted companion for cosmic travel planning</p>
         </header>
+
+        <div class="api-key-notice">
+            🔐 API Authentication Enabled - Enter your API key below
+        </div>
+
+        <div class="card">
+            <h2 class="card-title">🔑 API Configuration</h2>
+            <div class="form-group">
+                <label for="api-key">API Key</label>
+                <input type="password" id="api-key" placeholder="Enter your API key...">
+                <div id="api-key-error" class="error-hint">API key is required</div>
+            </div>
+        </div>
 
         <div class="card">
             <h2 class="card-title">⛽ Fuel Cost Calculator</h2>
@@ -449,8 +507,33 @@ INDEX_TEMPLATE = '''<!DOCTYPE html>
     </div>
 
     <script>
+        // Load saved API key from localStorage
+        let savedApiKey = localStorage.getItem('hitchhiker_api_key') || '';
+        if (savedApiKey) {
+            document.getElementById('api-key').value = savedApiKey;
+        }
+
         let calculationHistory = JSON.parse(localStorage.getItem('fuelHistory') || '[]');
         updateHistoryDisplay();
+
+        function getApiKey() {
+            const apiKeyInput = document.getElementById('api-key');
+            const apiKey = apiKeyInput.value.trim();
+            
+            if (!apiKey) {
+                apiKeyInput.classList.add('input-error');
+                document.getElementById('api-key-error').classList.add('visible');
+                return null;
+            }
+            
+            apiKeyInput.classList.remove('input-error');
+            document.getElementById('api-key-error').classList.remove('visible');
+            
+            // Save API key to localStorage
+            localStorage.setItem('hitchhiker_api_key', apiKey);
+            
+            return apiKey;
+        }
 
         function validateInputs() {
             let isValid = true;
@@ -514,6 +597,13 @@ INDEX_TEMPLATE = '''<!DOCTYPE html>
 
         async function calculateFuelCost() {
             hideError();
+            
+            const apiKey = getApiKey();
+            if (!apiKey) {
+                showError('Please enter a valid API key');
+                return;
+            }
+            
             if (!validateInputs()) return;
 
             const distance = parseFloat(document.getElementById('distance').value);
@@ -525,13 +615,16 @@ INDEX_TEMPLATE = '''<!DOCTYPE html>
             try {
                 const response = await fetch('/api/calculate', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': apiKey
+                    },
                     body: JSON.stringify({distance, efficiency, tax_rate: taxRate})
                 });
 
                 if (!response.ok) {
                     const err = await response.json();
-                    throw new Error(err.error || 'Calculation failed');
+                    throw new Error(err.error || err.message || 'Calculation failed');
                 }
                 
                 const data = await response.json();
@@ -600,12 +693,26 @@ INDEX_TEMPLATE = '''<!DOCTYPE html>
 
         async function getTravelAdvice() {
             hideError();
+            
+            const apiKey = getApiKey();
+            if (!apiKey) {
+                showError('Please enter a valid API key');
+                return;
+            }
+            
             setLoading(true);
             
             try {
-                const response = await fetch('/api/advice?count=3');
+                const response = await fetch('/api/advice?count=3', {
+                    headers: {
+                        'X-API-Key': apiKey
+                    }
+                });
                 
-                if (!response.ok) throw new Error('Failed to generate advice');
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error || err.message || 'Failed to generate advice');
+                }
                 
                 const data = await response.json();
                 displayAdvice(data.data.advices);
